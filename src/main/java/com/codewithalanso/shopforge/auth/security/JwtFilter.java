@@ -63,12 +63,42 @@ public class JwtFilter extends OncePerRequestFilter {
             }
         } catch (ExpiredJwtException e) {
             logger.warn("JWT token has expired: " + e.getMessage());
+            sendUnauthorized(response, "Access token has expired");
+            return;
         } catch (UsernameNotFoundException e) {
             logger.warn("User in JWT token not found: " + e.getMessage());
+            sendUnauthorized(response, "Invalid access token");
+            return;
         } catch (JwtException e) {
             logger.warn("JWT token validation failed: " + e.getMessage());
+            sendUnauthorized(response, "Invalid access token");
+            return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * A request that presented a Bearer token and had it rejected must come back as 401, not
+     * silently fall through as an anonymous request. Before this fix, the catch blocks above
+     * just logged a warning and let filterChain.doFilter(...) continue -- which meant Spring
+     * Security treated the request as anonymous instead of rejected. Anonymous authentication
+     * specifically fails SecurityConfig's .anyRequest().authenticated() rule (it means "any
+     * *non-anonymous* authenticated user", not just "not unauthenticated"), which Spring reports
+     * as an AccessDeniedException -> 403 Forbidden via GlobalExceptionHandler. The frontend's
+     * axios interceptor (lib/api/client.ts) only knows how to refresh-and-retry on a 401, so an
+     * expired access token -- something that happens routinely, 15 minutes into any session --
+     * was surfacing as a confusing, unrecoverable "Forbidden" instead of a silent token refresh.
+     */
+    private void sendUnauthorized(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        // Matches ApiResponse's shape by hand rather than pulling in an ObjectMapper bean --
+        // Spring Boot 4.1 didn't have a plain unqualified ObjectMapper bean available for
+        // constructor injection here, and this filter only ever needs to write this one fixed,
+        // trusted (not user-input-derived) message, so a manually-built JSON string is simpler
+        // and has one fewer dependency to wire up correctly.
+        response.getWriter().write(
+                "{\"success\":false,\"message\":\"" + message + "\",\"data\":null}");
     }
 }
