@@ -1,0 +1,48 @@
+# Docker Compose lets you describe a group of containers (here: a database and a fake mail
+# server) in one file, then bring them all up or down together with a single command:
+#   docker compose up -d      -> start everything in the background
+#   docker compose down       -> stop and remove the containers (add -v to also wipe the DB data)
+#   docker compose logs -f    -> stream logs from all services
+#
+# Why this exists: before this file, you had to install PostgreSQL directly onto your machine
+# and manage it yourself. With Compose, Postgres runs *inside a container* -- an isolated,
+# throwaway environment -- using the exact version this project expects, and it disappears
+# cleanly with `docker compose down` instead of leaving a real PostgreSQL install behind.
+
+services:
+
+  # --- PostgreSQL: the real database the Spring Boot app connects to ---
+  postgres:
+    image: postgres:16-alpine   # "alpine" = a small Linux base image, keeps the download light
+    environment:
+      # These three env vars are how the official postgres image bootstraps itself on first run:
+      # it creates a database with this name, owned by this user, with this password.
+      # They match the DB_USER / DB_PASSWORD defaults in the backend's application.properties,
+      # so the Spring Boot app can connect with zero extra configuration for local development.
+      POSTGRES_DB: shopforge
+      POSTGRES_USER: shopforge
+      POSTGRES_PASSWORD: shopforge
+    ports:
+      # "host:container" -- makes the container's Postgres (always on 5432 inside the container)
+      # reachable at localhost:5432 from your machine, exactly like a normally-installed Postgres.
+      - "5432:5432"
+    volumes:
+      # Without this, all data would vanish every time the container is removed. This line tells
+      # Docker to keep the actual database files in a named volume ("pgdata") that survives
+      # `docker compose down` (but not `docker compose down -v`, which deletes volumes too).
+      - pgdata:/var/lib/postgresql/data
+
+  # --- Mailhog: a fake SMTP server for local development ---
+  # Real email sending needs a real Gmail account + app password, which you don't want to depend
+  # on just to test "does the order confirmation email fire?" Mailhog pretends to be an SMTP
+  # server (so Spring's mail sender is happy) but instead of actually sending anything, it
+  # captures every email in a web inbox you can open in your browser. This is what
+  # application.properties' SMTP_HOST/SMTP_PORT defaults point to -- see the comments there.
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"   # SMTP port -- this is what the Spring Boot app connects to and sends mail to
+      - "8025:8025"   # Web UI -- open http://localhost:8025 in a browser to see "sent" emails
+
+volumes:
+  pgdata:

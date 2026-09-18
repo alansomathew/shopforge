@@ -1,0 +1,10 @@
+# This root repo only tracks project-level files (README, ROADMAP, docker-compose, docs/).
+# shopforge/ and shopforge-frontend/ are each their own independent git repository -- excluding
+# them here avoids git treating them as confusing nested/embedded repos.
+/shopforge/
+/shopforge-frontend/
+
+# Editor/tool config, not project content.
+.idea/
+.qodo/
+.vscode/
