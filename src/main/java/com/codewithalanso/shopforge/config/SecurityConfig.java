@@ -43,7 +43,12 @@ public class SecurityConfig {
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/categories/**").permitAll()
+                        // Only /tree is public -- GET /api/v1/categories (the new admin-only
+                        // flat listing, including inactive rows) must NOT match this rule, so
+                        // it stays precise rather than a "/**" wildcard that would have covered
+                        // it too.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/categories/tree").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/brands").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/api-docs/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

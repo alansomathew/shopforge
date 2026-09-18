@@ -275,6 +275,105 @@ public class SeedDataRunner implements CommandLineRunner {
                     .build();
             inventoryRepository.save(lampInv);
 
+
+            // Product 4: Chef Knife Set (Kitchenware) -- the Kitchenware category and ChefTech
+            // brand were already seeded above but had no products in them until now.
+            Product knifeSet = Product.builder()
+                    .seller(admin)
+                    .category(kitchenware)
+                    .brand(chefTech)
+                    .name("ChefTech Professional Knife Set")
+                    .slug("cheftech-professional-knife-set")
+                    .description("An 8-piece forged high-carbon stainless steel knife set with a walnut block, balanced for all-day prep work in a professional or home kitchen.")
+                    .shortDescription("8-piece forged stainless steel chef knife set.")
+                    .status(ProductStatus.ACTIVE)
+                    .isFeatured(true)
+                    .hasVariants(false)
+                    .basePrice(BigDecimal.valueOf(5999))
+                    .salePrice(BigDecimal.valueOf(4499))
+                    .avgRating(BigDecimal.valueOf(4.6))
+                    .reviewCount(32)
+                    .build();
+            knifeSet = productRepository.save(knifeSet);
+
+            ProductImage knifeSetImg = ProductImage.builder()
+                    .product(knifeSet)
+                    .url("https://images.unsplash.com/photo-1593618998160-e34014e67546?q=80&w=600&auto=format&fit=crop")
+                    .altText("ChefTech Knife Set")
+                    .isPrimary(true)
+                    .sortOrder(0)
+                    .build();
+            productImageRepository.save(knifeSetImg);
+
+            ProductVariant knifeSetV = ProductVariant.builder()
+                    .product(knifeSet)
+                    .sku("CT-KNIFE-8PC")
+                    .name("8-Piece Set")
+                    .price(BigDecimal.valueOf(5999))
+                    .salePrice(BigDecimal.valueOf(4499))
+                    .attributes(Map.of("Pieces", "8"))
+                    .isActive(true)
+                    .sortOrder(0)
+                    .build();
+            knifeSetV = productVariantRepository.save(knifeSetV);
+
+            Inventory knifeSetInv = Inventory.builder()
+                    .variant(knifeSetV)
+                    .quantityOnHand(25)
+                    .quantityReserved(0)
+                    .reorderThreshold(5)
+                    .build();
+            inventoryRepository.save(knifeSetInv);
+
+
+            // Product 5: Bluetooth Speaker (Electronics)
+            Product speaker = Product.builder()
+                    .seller(admin)
+                    .category(electronics)
+                    .brand(audioForge)
+                    .name("AudioForge SoundWave Bluetooth Speaker")
+                    .slug("audioforge-soundwave-bluetooth-speaker")
+                    .description("Portable IPX7 waterproof speaker with 360-degree sound, 24-hour battery life, and deep bass tuning for indoor or outdoor listening.")
+                    .shortDescription("Portable waterproof Bluetooth speaker with 24hr battery.")
+                    .status(ProductStatus.ACTIVE)
+                    .isFeatured(false)
+                    .hasVariants(true)
+                    .basePrice(BigDecimal.valueOf(4999))
+                    .salePrice(BigDecimal.valueOf(3999))
+                    .avgRating(BigDecimal.valueOf(4.4))
+                    .reviewCount(67)
+                    .build();
+            speaker = productRepository.save(speaker);
+
+            ProductImage speakerImg = ProductImage.builder()
+                    .product(speaker)
+                    .url("https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?q=80&w=600&auto=format&fit=crop")
+                    .altText("AudioForge SoundWave Speaker")
+                    .isPrimary(true)
+                    .sortOrder(0)
+                    .build();
+            productImageRepository.save(speakerImg);
+
+            ProductVariant speakerV = ProductVariant.builder()
+                    .product(speaker)
+                    .sku("AF-SW-BLK")
+                    .name("Midnight Black")
+                    .price(BigDecimal.valueOf(4999))
+                    .salePrice(BigDecimal.valueOf(3999))
+                    .attributes(Map.of("Color", "Black"))
+                    .isActive(true)
+                    .sortOrder(0)
+                    .build();
+            speakerV = productVariantRepository.save(speakerV);
+
+            Inventory speakerInv = Inventory.builder()
+                    .variant(speakerV)
+                    .quantityOnHand(40)
+                    .quantityReserved(0)
+                    .reorderThreshold(5)
+                    .build();
+            inventoryRepository.save(speakerInv);
+
             log.info("Catalog seeding completed successfully.");
         } else {
             log.info("Catalog categories already exist. Skipping seeding.");
