@@ -4,8 +4,10 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.generator.EventType;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
@@ -32,7 +34,16 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "order_number", unique = true, insertable = false, updatable = false, length = 30)
+    // order_number is filled in by the generate_order_number_trigger BEFORE INSERT (see
+    // V1__init.sql) -- there's no Java code anywhere that sets it. insertable/updatable=false
+    // tells Hibernate "never send this column yourself", but on its own that would leave this
+    // field null in the Java object forever, even though the database row has a real value.
+    // @Generated(event = EventType.INSERT) is the fix: it tells Hibernate to run one extra
+    // SELECT immediately after every INSERT into this table, specifically to read this column's
+    // trigger-assigned value back into the object -- so order.getOrderNumber() works right after
+    // orderRepository.save(order), not just on a later re-fetch.
+    @Generated(event = EventType.INSERT)
+    @Column(name = "order_number", insertable = false, updatable = false, length = 30)
     private String orderNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)

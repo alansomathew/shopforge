@@ -75,6 +75,20 @@ public class CartService {
     }
 
     /**
+     * Used by CheckoutService: the same "find or create" lookup every other method here uses,
+     * but checkout should never silently proceed with nothing in it, so this fails loudly
+     * instead of just handing back an empty Cart.
+     */
+    @Transactional
+    public Cart getCartForCheckout(User user) {
+        Cart cart = getOrCreateCart(user);
+        if (cart.getItems().isEmpty()) {
+            throw new AppException("Your cart is empty", HttpStatus.BAD_REQUEST);
+        }
+        return cart;
+    }
+
+    /**
      * Add a variant to the cart, or increase its quantity if it's already there.
      */
     @Transactional
