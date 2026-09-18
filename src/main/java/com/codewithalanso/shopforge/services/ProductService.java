@@ -37,7 +37,19 @@ public class ProductService {
 
     /**
      * Search and filter products using dynamic criteria.
+     *
+     * @Transactional(readOnly = true) matters here for the same reason as in CartService:
+     * application.properties sets spring.jpa.open-in-view=false, so the Hibernate session
+     * normally closes the instant a repository call (productRepository.findAll(spec, pageable))
+     * returns -- it does NOT stay open for the rest of this method. mapToDetailResponse() below
+     * walks product -> variants / images, both lazy @OneToMany collections, and without this
+     * annotation keeping the session open for the whole method, that access throws
+     * LazyInitializationException ("no session") the moment it's touched. This was a real,
+     * pre-existing bug: this method had no @Transactional at all before, so browsing the product
+     * catalog failed on literally any request that reached this Specification-based path
+     * (i.e. anything except a plain search-only query).
      */
+    @Transactional(readOnly = true)
     public ProductListResponseDto getProducts(
             String search,
             String categorySlug,
@@ -85,9 +97,15 @@ public class ProductService {
         Specification<Product> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Only show active and non-deleted products
+            // Only show active products. There's no separate "not deleted" predicate needed here:
+            // Product carries @SQLRestriction("deleted_at IS NULL") at the class level (see the
+            // entity), which Hibernate silently appends to every query against this entity on
+            // its own. A previous version of this line tried to do that filtering manually via
+            // root.get("deleted_at") -- but JPA Criteria's root.get(...) takes the ENTITY's Java
+            // property name (deletedAt), not the raw database column name, so it threw
+            // "Could not resolve attribute 'deleted_at'" on every request that reached this
+            // Specification (i.e. any product listing without a plain search term).
             predicates.add(cb.equal(root.get("status"), ProductStatus.ACTIVE));
-            predicates.add(cb.isNull(root.get("deleted_at")));
 
             // Featured filter
             if (featured != null) {
@@ -161,8 +179,11 @@ public class ProductService {
     }
 
     /**
-     * Get detailed product response by slug.
+     * Get detailed product response by slug. Not readOnly like getProducts() above -- this
+     * method also increments the view count (an actual write) in the same transaction, and a
+     * read-only transaction can have writes rejected at the JDBC driver/database level.
      */
+    @Transactional
     public Optional<ProductDetailResponse> getProductBySlug(String slug) {
         return productRepository.findBySlugAndStatus(slug, ProductStatus.ACTIVE)
                 .map(product -> {

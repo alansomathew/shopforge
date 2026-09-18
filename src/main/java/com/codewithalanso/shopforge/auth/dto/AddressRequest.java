@@ -1,5 +1,6 @@
 package com.codewithalanso.shopforge.auth.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -44,5 +45,11 @@ public class AddressRequest {
     @Size(max = 20, message = "Postal code cannot exceed 20 characters")
     private String postalCode;
 
+    // This field name starting with "is" affects DESERIALIZATION the same way
+    // CategoryResponse.isActive's comment describes for serialization: Lombok's setter for this
+    // field is setDefault(boolean) (it strips the leading "is" from the property name it derives
+    // for the setter too), so without @JsonProperty forcing the JSON key, an incoming
+    // {"isDefault": true} would silently fail to bind here and this would always read false.
+    @JsonProperty("isDefault")
     private boolean isDefault;
 }
