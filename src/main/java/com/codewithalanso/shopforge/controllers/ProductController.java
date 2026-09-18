@@ -59,10 +59,10 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success("Product details retrieved successfully", product));
     }
     /**
-     * Create a new product. Restricted to Admin and Seller roles.
+     * Create a new product. Admin-only -- this app runs as a single admin-operated store, not a multi-seller marketplace.
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SELLER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ProductDetailResponse>> createProduct(
             @Valid @RequestBody ProductSaveRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -74,10 +74,10 @@ public class ProductController {
     }
 
     /**
-     * Update an existing product. Restricted to Admin and Seller roles.
+     * Update an existing product. Admin-only -- this app runs as a single admin-operated store, not a multi-seller marketplace.
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SELLER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ProductDetailResponse>> updateProduct(
             @PathVariable UUID id,
             @Valid @RequestBody ProductSaveRequest request) {
@@ -87,10 +87,10 @@ public class ProductController {
     }
 
     /**
-     * Adjust inventory stock (add/subtract quantities). Restricted to Admin and Seller roles.
+     * Adjust inventory stock (add/subtract quantities). Admin-only -- this app runs as a single admin-operated store, not a multi-seller marketplace.
      */
     @PostMapping("/variants/{variantId}/inventory")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SELLER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> adjustInventory(
             @PathVariable UUID variantId,
             @Valid @RequestBody InventoryAdjustRequest request,
@@ -102,10 +102,10 @@ public class ProductController {
     }
 
     /**
-     * Delete a product. Restricted to Admin and Seller roles.
+     * Delete a product. Admin-only -- this app runs as a single admin-operated store, not a multi-seller marketplace.
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SELLER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable UUID id) {
         productService.deleteProduct(id);
         return ResponseEntity.ok(ApiResponse.success("Product deleted successfully"));
