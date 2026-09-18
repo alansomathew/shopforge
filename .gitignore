@@ -28,6 +28,9 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# Google Cloud Console credential downloads -- these contain a real OAuth client secret.
+client_secret_*.json
+
 # vercel
 .vercel
 
