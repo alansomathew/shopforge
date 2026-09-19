@@ -10,8 +10,10 @@ import { Footer } from '@/components/layout/Footer'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { Button } from '@/components/ui/Button'
 import { getAddresses } from '@/lib/api/addresses'
-import { checkout, OrderDto } from '@/lib/api/orders'
-import { MapPin, Truck, ClipboardCheck, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { checkout, getOrder, OrderDto } from '@/lib/api/orders'
+import { initiatePayment, verifyPayment } from '@/lib/api/payments'
+import { loadRazorpayScript } from '@/lib/razorpay'
+import { MapPin, Truck, ClipboardCheck, ChevronRight, CheckCircle2, Wallet, CreditCard } from 'lucide-react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 
@@ -26,9 +28,14 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [placedOrder, setPlacedOrder] = useState<OrderDto | null>(null)
   const [isPlacingOrder, setIsPlacingOrder] = useState(false)
+  // Set once checkout() succeeds, so a retry after a cancelled/failed payment re-initiates
+  // payment for the SAME order instead of calling checkout() again -- the cart is already
+  // cleared by then, so a second checkout() call would just fail with "cart is empty".
+  const [createdOrder, setCreatedOrder] = useState<OrderDto | null>(null)
 
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
   const [shippingMethod, setShippingMethod] = useState<'STANDARD' | 'EXPRESS'>('STANDARD')
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'RAZORPAY'>('COD')
 
   const { data: addresses, isLoading: isAddressesLoading } = useQuery({
     queryKey: ['myAddresses'],
@@ -47,16 +54,70 @@ export default function CheckoutPage() {
       setStep(1)
       return
     }
+
     setIsPlacingOrder(true)
     try {
-      const order = await checkout({ addressId: selectedAddressId, shippingMethod })
-      setPlacedOrder(order)
-      clear()
-      toast.success('Order placed successfully!')
+      // Reuse the already-created order on a retry (see createdOrder's declaration) instead of
+      // calling checkout() again, which would fail: the cart was already cleared on the first
+      // successful call, regardless of whether payment itself went on to succeed.
+      const order = createdOrder ?? (await checkout({ addressId: selectedAddressId, shippingMethod }))
+      if (!createdOrder) setCreatedOrder(order)
+
+      const payment = await initiatePayment({ orderId: order.id, method: paymentMethod })
+
+      if (payment.gateway === 'cod') {
+        const finalOrder = await getOrder(order.id)
+        setPlacedOrder(finalOrder)
+        clear()
+        toast.success('Order placed successfully!')
+        setIsPlacingOrder(false)
+        return
+      }
+
+      // Razorpay path: the modal is event-driven (opens and returns immediately), so
+      // isPlacingOrder is deliberately left true and only cleared inside the callbacks below --
+      // clearing it right after rzp.open() would let "Place Order" be clicked again while the
+      // modal is still open.
+      const loaded = await loadRazorpayScript()
+      if (!loaded || !window.Razorpay) {
+        toast.error('Could not load the payment gateway. Please try again.')
+        setIsPlacingOrder(false)
+        return
+      }
+
+      const rzp = new window.Razorpay({
+        key: payment.razorpayKeyId!,
+        amount: Math.round(payment.amount * 100),
+        currency: payment.currency,
+        name: 'ShopForge',
+        description: `Order ${order.orderNumber}`,
+        order_id: payment.razorpayOrderId!,
+        handler: (response) => {
+          verifyPayment({
+            razorpayOrderId: response.razorpay_order_id,
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpaySignature: response.razorpay_signature,
+          })
+            .then((finalOrder) => {
+              setPlacedOrder(finalOrder)
+              clear()
+              toast.success('Payment successful!')
+            })
+            .catch(() => toast.error('Payment verification failed. You can retry below.'))
+            .finally(() => setIsPlacingOrder(false))
+        },
+        modal: {
+          ondismiss: () => {
+            toast.error('Payment cancelled. You can retry below.')
+            setIsPlacingOrder(false)
+          },
+        },
+        theme: { color: '#f4a825' },
+      })
+      rzp.open()
     } catch (err) {
       const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined
       toast.error(message || 'Failed to place order')
-    } finally {
       setIsPlacingOrder(false)
     }
   }
@@ -72,7 +133,7 @@ export default function CheckoutPage() {
           <div className="space-y-2">
             <h1 className="font-display font-black text-2xl sm:text-3xl text-navy">Order Placed Successfully!</h1>
             <p className="text-slate text-sm">
-              Thank you for shopping on ShopForge. We&apos;ll email you once payment is confirmed.
+              Thank you for shopping on ShopForge. A confirmation email is on its way.
             </p>
           </div>
 
@@ -288,13 +349,37 @@ export default function CheckoutPage() {
               {step === 3 && (
                 <div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-6 animate-[fadeUp_200ms_ease-out]">
                   <h2 className="font-display font-bold text-navy text-lg flex items-center gap-2">
-                    <ClipboardCheck size={20} className="text-saffron" /> Review & Place Order
+                    <ClipboardCheck size={20} className="text-saffron" /> Payment Method
                   </h2>
 
-                  <div className="p-4 border border-saffron/20 rounded-xl bg-saffron/5 text-navy text-xs leading-relaxed">
-                    Payment collection isn&apos;t wired up yet -- placing an order now creates it with
-                    status <span className="font-mono font-bold">PENDING</span> and reserves stock for
-                    the items below. Card / UPI / COD payment support is coming in the next phase.
+                  <div className="space-y-3">
+                    <div
+                      onClick={() => setPaymentMethod('COD')}
+                      className={`p-4 rounded-xl border-2 cursor-pointer flex items-center gap-3 transition-all ${
+                        paymentMethod === 'COD' ? 'border-saffron bg-saffron/5' : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <input type="radio" checked={paymentMethod === 'COD'} onChange={() => setPaymentMethod('COD')} className="text-saffron focus:ring-saffron" />
+                      <Wallet size={18} className="text-slate-500" />
+                      <div>
+                        <span className="font-bold text-navy text-sm block">Cash on Delivery</span>
+                        <span className="text-xs text-slate-500">Pay when your order arrives</span>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setPaymentMethod('RAZORPAY')}
+                      className={`p-4 rounded-xl border-2 cursor-pointer flex items-center gap-3 transition-all ${
+                        paymentMethod === 'RAZORPAY' ? 'border-saffron bg-saffron/5' : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <input type="radio" checked={paymentMethod === 'RAZORPAY'} onChange={() => setPaymentMethod('RAZORPAY')} className="text-saffron focus:ring-saffron" />
+                      <CreditCard size={18} className="text-slate-500" />
+                      <div>
+                        <span className="font-bold text-navy text-sm block">Pay Online</span>
+                        <span className="text-xs text-slate-500">UPI, Card, or Netbanking via Razorpay</span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex justify-between pt-4 border-t border-slate-50">
