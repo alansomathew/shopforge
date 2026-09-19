@@ -1,5 +1,6 @@
 package com.codewithalanso.shopforge.services;
 
+import com.codewithalanso.shopforge.auth.service.EmailService;
 import com.codewithalanso.shopforge.common.exception.AppException;
 import com.codewithalanso.shopforge.dto.order.CheckoutRequest;
 import com.codewithalanso.shopforge.dto.order.OrderResponse;
@@ -52,6 +53,7 @@ public class CheckoutService {
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final OrderRepository orderRepository;
     private final OrderService orderService;
+    private final EmailService emailService;
 
     @Transactional
     public OrderResponse checkout(User user, CheckoutRequest request) {
@@ -151,6 +153,8 @@ public class CheckoutService {
 
         cart.getItems().clear();
         cartRepository.save(cart);
+
+        emailService.sendOrderPlacedEmail(user.getEmail(), savedOrder.getOrderNumber(), savedOrder.getTotalAmount());
 
         return orderService.mapToOrderResponse(savedOrder);
     }

@@ -49,6 +49,10 @@ public class SecurityConfig {
                         // it too.
                         .requestMatchers(HttpMethod.GET, "/api/v1/categories/tree").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/brands").permitAll()
+                        // Razorpay's own servers call this directly with no user session at all
+                        // -- authenticity comes from the HMAC signature PaymentService verifies,
+                        // not from a JWT (Razorpay has neither an account nor a token here).
+                        .requestMatchers("/api/v1/payments/webhook").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/api-docs/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

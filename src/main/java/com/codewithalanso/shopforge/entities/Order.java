@@ -3,6 +3,7 @@ package com.codewithalanso.shopforge.entities;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.annotations.ColumnTransformer;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -104,7 +105,14 @@ public class Order {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    // Postgres's `inet` type has no first-class JDBC equivalent, so Hibernate binds this plain
+    // String field as VARCHAR by default -- which Postgres refuses to insert into an inet column
+    // without an explicit cast (a real, pre-existing bug that blocked every checkout attempt).
+    // @ColumnTransformer(write = "?::inet") tells Hibernate to wrap the bind parameter in that
+    // cast at the SQL level. Same fix already used for RefreshToken.ipAddress elsewhere in this
+    // codebase -- this field was just missing it.
     @Column(name = "ip_address", columnDefinition = "inet")
+    @ColumnTransformer(write = "?::inet")
     private String ipAddress;
 
     @CreationTimestamp
